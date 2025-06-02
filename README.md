@@ -64,7 +64,7 @@ http://localhost:3000/
 Clone the project
 
 ```bash
-git clone https://github.com/username/article-management-system
+git clone https://github.com/Muhamadrenald/article-management-system
 ```
 
 Go to the project directory
