@@ -3,9 +3,12 @@ import { dummyArticles } from "@/lib/dummyData";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const article = dummyArticles.find((a) => a.id === parseInt(params.id));
+  // Await params karena sekarang berupa Promise di Next.js 15
+  const { id } = await params;
+
+  const article = dummyArticles.find((a) => a.id === parseInt(id));
   if (!article) {
     return NextResponse.json({ error: "Article not found" }, { status: 404 });
   }
@@ -14,10 +17,13 @@ export async function GET(
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  // Await params karena sekarang berupa Promise di Next.js 15
+  const { id } = await params;
+
   const data = await req.json();
-  const index = dummyArticles.findIndex((a) => a.id === parseInt(params.id));
+  const index = dummyArticles.findIndex((a) => a.id === parseInt(id));
   if (index === -1) {
     return NextResponse.json({ error: "Article not found" }, { status: 404 });
   }
@@ -30,9 +36,12 @@ export async function PUT(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const index = dummyArticles.findIndex((a) => a.id === parseInt(params.id));
+  // Await params karena sekarang berupa Promise di Next.js 15
+  const { id } = await params;
+
+  const index = dummyArticles.findIndex((a) => a.id === parseInt(id));
   if (index === -1) {
     return NextResponse.json({ error: "Article not found" }, { status: 404 });
   }
