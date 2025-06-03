@@ -46,6 +46,7 @@ export const dummyUsers = [
     id: "96c0157e-a321-4bb4-b1aa-12c791787f71",
     username: "Admin Naufan",
     role: "Admin",
+    password: "hashed_password_example",
     createdAt: "2025-05-29T16:09:05.278Z",
     updatedAt: "2025-05-29T16:09:05.278Z",
   },
