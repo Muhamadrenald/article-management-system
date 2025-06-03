@@ -29,6 +29,11 @@ interface NotificationProps {
   onClose: () => void;
 }
 
+// Interface untuk PageProps sesuai dengan Next.js 15
+interface PageProps {
+  params: Promise<{ id: string }>;
+}
+
 const Notification: React.FC<NotificationProps> = ({
   type,
   message,
@@ -71,19 +76,25 @@ const Notification: React.FC<NotificationProps> = ({
   );
 };
 
-export default function EditCategoryPage({
-  params,
-}: {
-  params: Promise<{ id: string }> | { id: string };
-}) {
+export default function EditCategoryPage({ params }: PageProps) {
   const router = useRouter();
   const [categoryId, setCategoryId] = useState<string | null>(null);
 
-  // Resolve params if it's a Promise
+  // Resolve params Promise untuk Next.js 15
   useEffect(() => {
     const resolveParams = async () => {
-      const resolved = await Promise.resolve(params);
-      setCategoryId(resolved.id);
+      try {
+        const resolved = await params;
+        setCategoryId(resolved.id);
+      } catch (error) {
+        console.error("Error resolving params:", error);
+        setErrorMessage("Failed to load category ID");
+        setNotification({
+          isVisible: true,
+          type: "error",
+          message: "Failed to load category ID",
+        });
+      }
     };
     resolveParams();
   }, [params]);
