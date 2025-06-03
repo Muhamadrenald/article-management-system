@@ -4,7 +4,14 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { FileText, Tag, LogOut, Menu, X } from "lucide-react";
-import { SidebarItem } from "@/types/common";
+
+// Definisikan tipe SidebarItem langsung di sini
+interface SidebarItem {
+  name: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  current: boolean;
+}
 
 const navigation: SidebarItem[] = [
   { name: "Articles", href: "/admin/articles", icon: FileText, current: false },
@@ -21,9 +28,7 @@ export default function AdminSidebar({ className = "" }: AdminSidebarProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const handleLogout = () => {
-    // Remove localStorage usage and implement proper logout
-    // localStorage.removeItem("token"); // Remove this line
-    // Instead, you should call your logout API or state management
+    // Implementasi logout sederhana
     router.push("/login");
   };
 
