@@ -3,24 +3,20 @@ import { dummyCategories } from "@/lib/dummyData";
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> | { id: string } }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const resolvedParams = await Promise.resolve(params);
-    const categoryIdParam = resolvedParams.id;
-
+    const categoryIdParam = params.id;
     console.log(
       "PUT /api/categories/[id] - Category ID param:",
       categoryIdParam
     );
-
     const data = await req.json();
     console.log("Update data received:", data);
 
     let categoryIndex = dummyCategories.findIndex(
       (c) => c.id.toString() === categoryIdParam
     );
-
     if (categoryIndex === -1) {
       const categoryIdNum = parseInt(categoryIdParam);
       if (!isNaN(categoryIdNum)) {
@@ -51,7 +47,6 @@ export async function PUT(
           index !== categoryIndex &&
           c.name.toLowerCase() === data.name.toLowerCase()
       );
-
       if (existingCategory) {
         return NextResponse.json(
           { error: "Category with this name already exists" },
@@ -67,7 +62,6 @@ export async function PUT(
     };
 
     console.log("Category updated:", dummyCategories[categoryIndex]);
-
     return NextResponse.json({
       message: "Category updated successfully",
       category: dummyCategories[categoryIndex],
@@ -83,12 +77,10 @@ export async function PUT(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> | { id: string } }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const resolvedParams = await Promise.resolve(params);
-    const categoryIdParam = resolvedParams.id;
-
+    const categoryIdParam = params.id;
     console.log(
       "DELETE /api/categories/[id] - Category ID param:",
       categoryIdParam
@@ -97,7 +89,6 @@ export async function DELETE(
     let categoryIndex = dummyCategories.findIndex(
       (c) => c.id.toString() === categoryIdParam
     );
-
     if (categoryIndex === -1) {
       const categoryIdNum = parseInt(categoryIdParam);
       if (!isNaN(categoryIdNum)) {
@@ -119,7 +110,6 @@ export async function DELETE(
     dummyCategories.splice(categoryIndex, 1);
 
     console.log("Category deleted:", deletedCategory);
-
     return NextResponse.json({
       message: "Category deleted successfully",
       deletedCategory,
