@@ -21,12 +21,12 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 
-export default function ArticleDetailPage({
-  params: paramsPromise,
-}: {
+interface ArticleDetailPageProps {
   params: Promise<{ id: string }>;
-}) {
-  const params = use(paramsPromise);
+}
+
+export default function ArticleDetailPage({ params }: ArticleDetailPageProps) {
+  const resolvedParams = use(params);
   const [article, setArticle] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -37,7 +37,7 @@ export default function ArticleDetailPage({
     const fetchArticle = async () => {
       try {
         setLoading(true);
-        const res = await axios.get(`/articles/${params.id}`);
+        const res = await axios.get(`/articles/${resolvedParams.id}`);
         setArticle(res.data);
         setError(null);
       } catch (err: any) {
@@ -52,7 +52,7 @@ export default function ArticleDetailPage({
       }
     };
     fetchArticle();
-  }, [params.id]);
+  }, [resolvedParams.id]);
 
   if (loading) {
     return (
