@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
 
     // Validate token
     if (!token || token !== "dummy-token") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Tidak diizinkan" }, { status: 401 });
     }
 
     // Untuk implementasi dummy, kita akan return user pertama yang ada
@@ -17,10 +17,13 @@ export async function GET(req: NextRequest) {
     const user = dummyUsers.length > 0 ? dummyUsers[0] : null;
 
     if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Pengguna tidak ditemukan" },
+        { status: 404 }
+      );
     }
 
-    // Return user data without password
+    // Menghilangkan password dari respons
     const { password, ...userWithoutPassword } = user;
 
     return NextResponse.json({
@@ -32,13 +35,10 @@ export async function GET(req: NextRequest) {
         createdAt: userWithoutPassword.createdAt,
         updatedAt: userWithoutPassword.updatedAt,
       },
-      message: "Profile retrieved successfully",
+      message: "Profil berhasil diambil",
     });
   } catch (error) {
-    console.error("Error in GET /auth/profile:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    console.error("Error di GET /api/auth/profile:", error);
+    return NextResponse.json({ error: "Kesalahan server" }, { status: 500 });
   }
 }
