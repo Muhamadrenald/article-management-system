@@ -14,7 +14,10 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     // Tidak perlu parseInt karena id di dummyArticles adalah string
     const article = dummyArticles.find((a) => a.id === id);
     if (!article) {
-      return NextResponse.json({ error: "Artikel tidak ditemukan" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Artikel tidak ditemukan" },
+        { status: 404 }
+      );
     }
 
     return NextResponse.json(article);
@@ -34,17 +37,24 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     const index = dummyArticles.findIndex((a) => a.id === id);
 
     if (index === -1) {
-      return NextResponse.json({ error: "Artikel tidak ditemukan" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Artikel tidak ditemukan" },
+        { status: 404 }
+      );
     }
 
     // Memperbarui artikel dengan data baru
-    dummyArticles[index] = { ...dummyArticles[index], ...data, updatedAt: new Date().toISOString() };
+    dummyArticles[index] = {
+      ...dummyArticles[index],
+      ...data,
+      updatedAt: new Date().toISOString(),
+    };
     return NextResponse.json({
       message: "Artikel berhasil diperbarui",
       article: dummyArticles[index],
     });
   } catch (error) {
-    console.error "Error di PUT /api/articles/[id]:", error);
+    console.error("Error di PUT /api/articles/[id]:", error); // Perbaikan sintaks
     return NextResponse.json({ error: "Kesalahan server" }, { status: 500 });
   }
 }
@@ -58,7 +68,10 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     const index = dummyArticles.findIndex((a) => a.id === id);
 
     if (index === -1) {
-      return NextResponse.json({ error: "Artikel tidak ditemukan" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Artikel tidak ditemukan" },
+        { status: 404 }
+      );
     }
 
     // Menyimpan artikel yang dihapus untuk respons
