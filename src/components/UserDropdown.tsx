@@ -3,8 +3,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import axios from "@/lib/axios";
-// Import beberapa opsi icon logout dari lucide-react
-import { LogOut, DoorOpen, ArrowRight, Power } from "lucide-react";
+import { LogOut } from "lucide-react";
+import { Notification } from "@/components/ui/notification";
 
 // Sesuaikan dengan response API endpoint GET /auth/profile
 interface User {
@@ -24,8 +24,22 @@ export default function UserDropdown({ user: initialUser }: UserDropdownProps) {
   const [user, setUser] = useState<User | null>(initialUser || null);
   const [loading, setLoading] = useState(!initialUser);
   const [error, setError] = useState<string | null>(null);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [notification, setNotification] = useState<{
+    isVisible: boolean;
+    type: "success" | "error";
+    message: string;
+  }>({
+    isVisible: false,
+    type: "success",
+    message: "",
+  });
   const dropdownRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+
+  const handleNotificationClose = () => {
+    setNotification((prev) => ({ ...prev, isVisible: false }));
+  };
 
   // Fetch user profile jika tidak ada initial user
   useEffect(() => {
@@ -68,9 +82,20 @@ export default function UserDropdown({ user: initialUser }: UserDropdownProps) {
       };
 
       setUser(userData);
+      setNotification({
+        isVisible: true,
+        type: "success",
+        message: `Welcome back, ${userData.username}!`,
+      });
     } catch (error: any) {
       console.log("Error fetching user profile");
       setError("Failed to load user profile");
+
+      setNotification({
+        isVisible: true,
+        type: "error",
+        message: "Failed to load user profile",
+      });
 
       // Jika error 401 (Unauthorized), redirect ke login
       if (error.response?.status === 401) {
@@ -83,6 +108,13 @@ export default function UserDropdown({ user: initialUser }: UserDropdownProps) {
 
   const handleLogout = async () => {
     try {
+      setIsLoggingOut(true);
+      setNotification({
+        isVisible: true,
+        type: "success",
+        message: "Logging out...",
+      });
+
       // Hapus token dari localStorage terlebih dahulu
       if (typeof window !== "undefined") {
         localStorage.removeItem("token");
@@ -106,16 +138,36 @@ export default function UserDropdown({ user: initialUser }: UserDropdownProps) {
         );
       }
 
-      // Redirect ke halaman login
-      router.push("/login");
+      // Tampilkan notifikasi sukses logout
+      setNotification({
+        isVisible: true,
+        type: "success",
+        message: "Logout successful! Redirecting...",
+      });
+
+      // Redirect ke halaman login dengan delay
+      setTimeout(() => {
+        router.push("/login");
+      }, 1500);
     } catch (error) {
       console.log("Error during logout process");
+      setNotification({
+        isVisible: true,
+        type: "error",
+        message: "Logout failed, but you will be redirected to login",
+      });
+
       // Force redirect even if logout fails
       if (typeof window !== "undefined") {
         localStorage.removeItem("token");
         localStorage.removeItem("refreshToken");
       }
-      router.push("/login");
+
+      setTimeout(() => {
+        router.push("/login");
+      }, 2000);
+    } finally {
+      setIsLoggingOut(false);
     }
   };
 
@@ -139,6 +191,12 @@ export default function UserDropdown({ user: initialUser }: UserDropdownProps) {
   if (error || !user) {
     return (
       <div className="flex items-center space-x-2">
+        <Notification
+          type={notification.type}
+          message={notification.message}
+          isVisible={notification.isVisible}
+          onClose={handleNotificationClose}
+        />
         <button
           onClick={() => router.push("/login")}
           className="text-white text-sm hover:text-blue-200 transition-colors px-3 py-1 rounded border border-white/20 hover:bg-white/10"
@@ -151,10 +209,18 @@ export default function UserDropdown({ user: initialUser }: UserDropdownProps) {
 
   return (
     <div className="relative" ref={dropdownRef}>
+      <Notification
+        type={notification.type}
+        message={notification.message}
+        isVisible={notification.isVisible}
+        onClose={handleNotificationClose}
+      />
+
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center space-x-2 hover:opacity-80 transition-opacity"
         aria-label="User menu"
+        disabled={isLoggingOut}
       >
         <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
           <span className="text-white text-xs font-medium">
@@ -165,9 +231,7 @@ export default function UserDropdown({ user: initialUser }: UserDropdownProps) {
           {user.username}
         </span>
         <svg
-          className={`w-4 h-4 text-white transition-transform ${
-            isOpen ? "rotate-180" : ""
-          }`}
+          className="w-4 h-4 text-white transition-transform"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -191,47 +255,15 @@ export default function UserDropdown({ user: initialUser }: UserDropdownProps) {
             </p>
           </div>
 
-          {/* Logout Button dengan beberapa opsi icon */}
+          {/* Logout Button */}
           <button
             onClick={handleLogout}
-            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center space-x-2 transition-colors"
+            disabled={isLoggingOut}
+            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center space-x-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {/* Opsi 1: LogOut - Icon logout klasik yang paling umum */}
             <LogOut className="w-4 h-4" />
-            <span>Logout</span>
+            <span>{isLoggingOut ? "Logging out..." : "Logout"}</span>
           </button>
-
-          {/* Uncomment salah satu di bawah untuk mencoba opsi icon lainnya */}
-
-          {/* Opsi 2: DoorOpen - Icon pintu terbuka, sangat intuitif untuk "keluar"
-          <button
-            onClick={handleLogout}
-            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center space-x-2 transition-colors"
-          >
-            <DoorOpen className="w-4 h-4" />
-            <span>Logout</span>
-          </button>
-          */}
-
-          {/* Opsi 3: ArrowRight - Icon panah minimalis dan elegan
-          <button
-            onClick={handleLogout}
-            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center space-x-2 transition-colors"
-          >
-            <ArrowRight className="w-4 h-4" />
-            <span>Logout</span>
-          </button>
-          */}
-
-          {/* Opsi 4: Power - Icon power button, modern dan profesional
-          <button
-            onClick={handleLogout}
-            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center space-x-2 transition-colors"
-          >
-            <Power className="w-4 h-4" />
-            <span>Logout</span>
-          </button>
-          */}
         </div>
       )}
     </div>

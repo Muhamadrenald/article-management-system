@@ -8,6 +8,7 @@ import axios from "@/lib/axios";
 import { setAuthData } from "@/lib/auth";
 import Link from "next/link";
 import { jwtDecode } from "jwt-decode";
+import { Notification } from "@/components/ui/notification";
 
 const loginSchema = z.object({
   username: z.string().min(1, "Username is required"),
@@ -25,6 +26,15 @@ export default function LoginPage() {
   const router = useRouter();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [notification, setNotification] = useState<{
+    isVisible: boolean;
+    type: "success" | "error";
+    message: string;
+  }>({
+    isVisible: false,
+    type: "success",
+    message: "",
+  });
 
   const {
     register,
@@ -34,10 +44,15 @@ export default function LoginPage() {
     resolver: zodResolver(loginSchema),
   });
 
+  const handleNotificationClose = () => {
+    setNotification((prev) => ({ ...prev, isVisible: false }));
+  };
+
   const onSubmit = async (data: LoginForm) => {
     try {
       setIsLoading(true);
       setErrorMessage(null);
+      setNotification({ isVisible: false, type: "success", message: "" });
 
       const res = await axios.post("/auth/login", { ...data, action: "login" });
 
@@ -66,7 +81,14 @@ export default function LoginPage() {
 
         console.log("Cookies set, role:", normalizedRole); // Debug log
 
-        // Redirect berdasarkan role dengan delay kecil untuk memastikan cookies tersimpan
+        // Tampilkan notifikasi sukses
+        setNotification({
+          isVisible: true,
+          type: "success",
+          message: "Login successful! Redirecting...",
+        });
+
+        // Redirect berdasarkan role dengan delay untuk menampilkan notifikasi
         setTimeout(() => {
           if (normalizedRole === "admin") {
             console.log("Redirecting to admin articles"); // Debug log
@@ -75,7 +97,7 @@ export default function LoginPage() {
             console.log("Redirecting to user articles"); // Debug log
             router.push("/articles");
           }
-        }, 100);
+        }, 1500);
       } else {
         throw new Error("Invalid response from server: Token or role missing");
       }
@@ -85,8 +107,14 @@ export default function LoginPage() {
         error.response?.data?.error ||
         error.response?.data?.message ||
         error.message ||
-        "Login gagal. Silakan coba lagi.";
+        "Login failed. Please try again.";
+
       setErrorMessage(errorMsg);
+      setNotification({
+        isVisible: true,
+        type: "error",
+        message: errorMsg,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -94,6 +122,13 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+      <Notification
+        type={notification.type}
+        message={notification.message}
+        isVisible={notification.isVisible}
+        onClose={handleNotificationClose}
+      />
+
       <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
 
       <div className="relative min-h-screen flex items-center justify-center px-4">

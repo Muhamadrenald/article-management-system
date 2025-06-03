@@ -7,6 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import axios from "@/lib/axios";
 import { useState } from "react";
 import Link from "next/link";
+import { Notification } from "@/components/ui/notification";
 
 const registerSchema = z.object({
   username: z.string().min(1, "Username is required"),
@@ -27,11 +28,25 @@ export default function RegisterPage() {
   });
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [notification, setNotification] = useState<{
+    isVisible: boolean;
+    type: "success" | "error";
+    message: string;
+  }>({
+    isVisible: false,
+    type: "success",
+    message: "",
+  });
+
+  const handleNotificationClose = () => {
+    setNotification((prev) => ({ ...prev, isVisible: false }));
+  };
 
   const onSubmit = async (data: RegisterForm) => {
     try {
       setIsLoading(true);
       setErrorMessage(null); // Reset error message
+      setNotification({ isVisible: false, type: "success", message: "" });
 
       const response = await axios.post(
         "/auth/register",
@@ -42,15 +57,34 @@ export default function RegisterPage() {
           },
         }
       );
+
       console.log("Registration successful:", response.data);
-      router.push("/login");
+
+      // Tampilkan notifikasi sukses
+      setNotification({
+        isVisible: true,
+        type: "success",
+        message: "Registration successful! Redirecting to login...",
+      });
+
+      // Redirect ke login dengan delay untuk menampilkan notifikasi
+      setTimeout(() => {
+        router.push("/login");
+      }, 2000);
     } catch (error: any) {
       const errorMsg =
         error.response?.data?.message ||
         error.response?.data?.error ||
         error.message ||
         "Registration failed. Please try again.";
+
       setErrorMessage(errorMsg);
+      setNotification({
+        isVisible: true,
+        type: "error",
+        message: errorMsg,
+      });
+
       console.error("Registration error:", error);
     } finally {
       setIsLoading(false);
@@ -59,6 +93,13 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+      <Notification
+        type={notification.type}
+        message={notification.message}
+        isVisible={notification.isVisible}
+        onClose={handleNotificationClose}
+      />
+
       {/* Background Pattern */}
       <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
 
