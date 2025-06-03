@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { Plus, Edit3, Trash2, Eye } from "lucide-react";
+import { Plus, Edit3, Trash2, Eye, X } from "lucide-react";
 import axios from "@/lib/axios";
 import type { Article, Category, PaginatedResponse } from "@/types";
 import DebouncedInput from "@/components/DebouncedInput";
@@ -51,31 +51,67 @@ export default function AdminArticlesPage() {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      params.append("page", page.toString());
-      params.append("limit", "10"); // 10 artikel per halaman
-      if (search) params.append("search", search);
-      if (selectedCategory) params.append("category", selectedCategory);
+
+      // If there's a search term, fetch all data for client-side filtering
+      if (search.trim()) {
+        params.append("page", "1");
+        params.append("limit", "100"); // Fetch more for client-side filtering
+        params.append("search", search.trim());
+      } else {
+        // Use server-side pagination when no search
+        params.append("page", page.toString());
+        params.append("limit", "10");
+      }
+
+      if (selectedCategory) {
+        params.append("category", selectedCategory);
+      }
+
+      console.log("Fetching articles with params:", params.toString());
 
       const res = await axios.get<PaginatedResponse<Article>>(
         `/articles?${params.toString()}&admin=true`
       );
 
-      console.log("API Response:", res.data); // Debugging respons API
+      console.log("API Response:", res.data);
 
       // Validasi respons
       if (!res.data || !Array.isArray(res.data.data)) {
         throw new Error("Invalid API response structure");
       }
 
-      // Set data artikel
-      setArticles(res.data.data);
+      let finalArticles = res.data.data;
+      let finalTotal = res.data.total || res.data.data.length;
 
-      // Set totalItems dan totalPages
-      const total = res.data.total || res.data.data.length;
-      const limit = res.data.limit || 10;
-      setTotalItems(total);
-      setTotalPages(Math.ceil(total / limit) || 1);
+      // If there's a search term, do client-side filtering and pagination
+      if (search.trim()) {
+        const searchLower = search.trim().toLowerCase();
+        const filteredArticles = res.data.data.filter(
+          (article) =>
+            article.title.toLowerCase().includes(searchLower) ||
+            createExcerpt(article.content).toLowerCase().includes(searchLower)
+        );
 
+        console.log(
+          `Client-side filtering for "${search}" found ${filteredArticles.length} results`
+        );
+
+        // Apply client-side pagination
+        const limit = 10;
+        const startIndex = (page - 1) * limit;
+        finalArticles = filteredArticles.slice(startIndex, startIndex + limit);
+        finalTotal = filteredArticles.length;
+        setTotalPages(Math.ceil(filteredArticles.length / limit) || 1);
+      } else {
+        // Use server-side pagination data
+        finalArticles = res.data.data;
+        finalTotal = res.data.total || res.data.data.length;
+        const limit = res.data.limit || 10;
+        setTotalPages(Math.ceil(finalTotal / limit) || 1);
+      }
+
+      setArticles(finalArticles);
+      setTotalItems(finalTotal);
       setError(null);
     } catch (err: any) {
       console.error("Error fetching articles:", err);
@@ -88,6 +124,11 @@ export default function AdminArticlesPage() {
     }
   }, [page, search, selectedCategory]);
 
+  // Reset page ke 1 ketika search atau category berubah
+  useEffect(() => {
+    setPage(1);
+  }, [search, selectedCategory]);
+
   useEffect(() => {
     fetchArticles();
   }, [fetchArticles]);
@@ -95,15 +136,71 @@ export default function AdminArticlesPage() {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const res = await axios.get<{ data: Category[] }>("/categories");
+        // Fetch all categories by setting a high limit or using a specific endpoint
+        const res = await axios.get<{ data: Category[]; totalData?: number }>(
+          "/categories?limit=100"
+        );
         console.log("Categories Response:", res.data); // Debugging
-        setCategories(res.data.data || []);
+
+        // If the API still returns paginated data and we need more categories
+        if (res.data.totalData && res.data.totalData > res.data.data.length) {
+          // Fetch all categories by making multiple requests if needed
+          const allCategories: Category[] = [...res.data.data];
+          const totalPages = Math.ceil(res.data.totalData / 100);
+
+          // Fetch remaining pages if there are more
+          for (let page = 2; page <= totalPages; page++) {
+            try {
+              const pageRes = await axios.get<{ data: Category[] }>(
+                `/categories?limit=100&page=${page}`
+              );
+              allCategories.push(...pageRes.data.data);
+            } catch (err) {
+              console.error(`Error fetching categories page ${page}:`, err);
+            }
+          }
+
+          setCategories(allCategories);
+          console.log(`Loaded ${allCategories.length} total categories`);
+        } else {
+          setCategories(res.data.data || []);
+        }
       } catch (err) {
         console.error("Error fetching categories:", err);
+        // Try alternative approach if the above fails
+        try {
+          // Try without limit parameter
+          const fallbackRes = await axios.get<{ data: Category[] }>(
+            "/categories"
+          );
+          setCategories(fallbackRes.data.data || []);
+        } catch (fallbackErr) {
+          console.error("Fallback categories fetch also failed:", fallbackErr);
+          setCategories([]);
+        }
       }
     };
     fetchCategories();
   }, []);
+
+  // Handler untuk search dengan reset page
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+    setPage(1); // Reset ke halaman pertama saat search
+  };
+
+  // Handler untuk category change dengan reset page
+  const handleCategoryChange = (value: string) => {
+    setSelectedCategory(value);
+    setPage(1); // Reset ke halaman pertama saat filter category
+  };
+
+  // Handler untuk clear filters
+  const handleClearFilters = () => {
+    setSearch("");
+    setSelectedCategory("");
+    setPage(1);
+  };
 
   // Handler untuk membuka modal delete
   const handleDeleteClick = (article: Article) => {
@@ -134,15 +231,8 @@ export default function AdminArticlesPage() {
     try {
       await axios.delete(`/articles/${deleteModal.article.id}`);
 
-      // Update state articles
-      setArticles(
-        articles.filter((article) => article.id !== deleteModal.article!.id)
-      );
-      setTotalItems((prev) => {
-        const newTotal = prev - 1;
-        setTotalPages(Math.ceil(newTotal / 10) || 1);
-        return newTotal;
-      });
+      // Refresh data setelah delete
+      await fetchArticles();
 
       // Tutup modal
       setDeleteModal({
@@ -209,7 +299,18 @@ export default function AdminArticlesPage() {
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Articles</h1>
-            <p className="text-gray-600 mt-2">Total Articles: {totalItems}</p>
+            <p className="text-gray-600 mt-2">
+              {totalItems > 0 ? (
+                <>
+                  Showing {(page - 1) * 10 + 1} -{" "}
+                  {Math.min(page * 10, totalItems)} of {totalItems} articles
+                  {search && ` (filtered by "${search}")`}
+                  {selectedCategory && ` (category filtered)`}
+                </>
+              ) : (
+                "No articles found"
+              )}
+            </p>
           </div>
           <Link
             href="/admin/articles/create"
@@ -227,7 +328,7 @@ export default function AdminArticlesPage() {
           <div className="w-full sm:w-80">
             <DebouncedInput
               value={search}
-              onChange={setSearch}
+              onChange={handleSearchChange}
               placeholder="Search articles by title..."
               debounceMs={300}
             />
@@ -235,10 +336,10 @@ export default function AdminArticlesPage() {
           <div className="w-full sm:w-48">
             <select
               value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
+              onChange={(e) => handleCategoryChange(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
-              <option value="">All Categories</option>
+              <option value="">All Categories ({categories.length})</option>
               {categories.map((category) => (
                 <option key={category.id} value={category.id}>
                   {category.name}
@@ -247,6 +348,17 @@ export default function AdminArticlesPage() {
             </select>
           </div>
         </div>
+
+        {/* Clear filters button */}
+        {(search || selectedCategory) && (
+          <button
+            onClick={handleClearFilters}
+            className="px-3 py-2 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-md hover:bg-gray-50 flex items-center"
+          >
+            <X className="w-4 h-4 mr-1" />
+            Clear Filters
+          </button>
+        )}
       </div>
 
       {/* Error Message */}
@@ -269,7 +381,11 @@ export default function AdminArticlesPage() {
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
           {articles.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-gray-500 text-lg">No articles found.</p>
+              <p className="text-gray-500 text-lg">
+                {search || selectedCategory
+                  ? "No articles found matching your criteria."
+                  : "No articles found."}
+              </p>
             </div>
           ) : (
             <>
@@ -305,8 +421,7 @@ export default function AdminArticlesPage() {
                                 className="h-16 w-20 rounded-lg object-cover"
                                 src={
                                   article.imageUrl ||
-                                  "https://picsum.photos/200" ||
-                                  "/placeholder.svg"
+                                  "https://picsum.photos/200"
                                 }
                                 alt={article.title}
                               />

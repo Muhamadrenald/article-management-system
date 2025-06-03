@@ -2,12 +2,67 @@
 import { useState, useEffect, useCallback } from "react";
 import axios from "@/lib/axios";
 import ArticleCard from "@/components/ArticleCard";
-import Pagination from "@/components/Pagination";
+import { Pagination } from "@/components/ui/pagination";
 import DebouncedInput from "@/components/DebouncedInput";
 import UserDropdown from "@/components/UserDropdown";
+import { X } from "lucide-react";
+
+// Fungsi untuk menghasilkan warna kategori yang konsisten
+const getCategoryColor = (categoryName: string) => {
+  const colors = [
+    { bg: "bg-blue-100", text: "text-blue-800", border: "border-blue-200" },
+    { bg: "bg-green-100", text: "text-green-800", border: "border-green-200" },
+    {
+      bg: "bg-purple-100",
+      text: "text-purple-800",
+      border: "border-purple-200",
+    },
+    {
+      bg: "bg-orange-100",
+      text: "text-orange-800",
+      border: "border-orange-200",
+    },
+    { bg: "bg-pink-100", text: "text-pink-800", border: "border-pink-200" },
+    {
+      bg: "bg-indigo-100",
+      text: "text-indigo-800",
+      border: "border-indigo-200",
+    },
+    { bg: "bg-red-100", text: "text-red-800", border: "border-red-200" },
+    {
+      bg: "bg-yellow-100",
+      text: "text-yellow-800",
+      border: "border-yellow-200",
+    },
+    { bg: "bg-teal-100", text: "text-teal-800", border: "border-teal-200" },
+    { bg: "bg-cyan-100", text: "text-cyan-800", border: "border-cyan-200" },
+    {
+      bg: "bg-emerald-100",
+      text: "text-emerald-800",
+      border: "border-emerald-200",
+    },
+    {
+      bg: "bg-violet-100",
+      text: "text-violet-800",
+      border: "border-violet-200",
+    },
+  ];
+
+  // Menggunakan hash sederhana dari nama kategori untuk konsistensi
+  let hash = 0;
+  for (let i = 0; i < categoryName.length; i++) {
+    const char = categoryName.charCodeAt(i);
+    hash = (hash << 5) - hash + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+
+  const index = Math.abs(hash) % colors.length;
+  return colors[index];
+};
 
 export default function ArticlesPage() {
   const [articles, setArticles] = useState<any[]>([]);
+  const [allArticles, setAllArticles] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -15,26 +70,55 @@ export default function ArticlesPage() {
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const fetchArticles = useCallback(async () => {
+    setLoading(true);
     try {
       const params = new URLSearchParams();
-      params.append("page", page.toString());
+      params.append("page", "1");
+      params.append("limit", "100");
 
-      // Jika kategori dipilih, prioritaskan kategori
       if (selectedCategory) {
         params.append("category", selectedCategory);
-      }
-      // Jika ada pencarian dan tidak ada kategori yang dipilih
-      else if (search.trim()) {
-        // Langsung kirim sebagai search parameter untuk pencarian artikel berdasarkan title/name
+      } else if (search.trim()) {
         params.append("search", search.trim());
       }
 
+      console.log("Fetching articles with params:", params.toString());
+
       const res = await axios.get(`/articles?${params.toString()}`);
-      setArticles(res.data.data || []);
-      setTotalPages(Math.ceil(res.data.total / res.data.limit) || 1);
-      setTotalArticles(res.data.total || 0);
+      console.log("Articles API Response:", res.data);
+
+      const fetchedArticles = res.data.data || [];
+      setAllArticles(fetchedArticles);
+
+      // Apply client-side filtering if search term exists and no category is selected
+      let filteredArticles = fetchedArticles;
+      if (search.trim() && !selectedCategory) {
+        const searchLower = search.trim().toLowerCase();
+        filteredArticles = fetchedArticles.filter(
+          (article: any) =>
+            article.title.toLowerCase().includes(searchLower) ||
+            (article.content &&
+              article.content.toLowerCase().includes(searchLower))
+        );
+        console.log(
+          `Client-side filtering for "${search}" found ${filteredArticles.length} results`
+        );
+      }
+
+      // Calculate pagination based on filtered results
+      const limit = 10;
+      const startIndex = (page - 1) * limit;
+      const paginatedArticles = filteredArticles.slice(
+        startIndex,
+        startIndex + limit
+      );
+
+      setArticles(paginatedArticles);
+      setTotalPages(Math.ceil(filteredArticles.length / limit) || 1);
+      setTotalArticles(filteredArticles.length);
       setError(null);
     } catch (err: any) {
       setError(
@@ -44,6 +128,11 @@ export default function ArticlesPage() {
       );
       console.error("Error fetching articles:", err);
       setArticles([]);
+      setAllArticles([]);
+      setTotalArticles(0);
+      setTotalPages(1);
+    } finally {
+      setLoading(false);
     }
   }, [page, search, selectedCategory]);
 
@@ -59,29 +148,68 @@ export default function ArticlesPage() {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const res = await axios.get("/categories");
-        setCategories(res.data.data || []);
+        const res = await axios.get("/categories?limit=100");
+        console.log("Categories Response:", res.data);
+
+        let allCategories: any[] = [];
+
+        if (Array.isArray(res.data)) {
+          allCategories = res.data;
+        } else if (res.data && Array.isArray(res.data.data)) {
+          allCategories = [...res.data.data];
+
+          if (res.data.totalData && res.data.totalData > res.data.data.length) {
+            const totalPages = Math.ceil(res.data.totalData / 100);
+
+            for (let page = 2; page <= totalPages; page++) {
+              try {
+                const pageRes = await axios.get(
+                  `/categories?limit=100&page=${page}`
+                );
+                if (pageRes.data && Array.isArray(pageRes.data.data)) {
+                  allCategories.push(...pageRes.data.data);
+                }
+              } catch (err) {
+                console.error(`Error fetching categories page ${page}:`, err);
+              }
+            }
+          }
+        }
+
+        setCategories(allCategories);
+        console.log(`Loaded ${allCategories.length} total categories`);
       } catch (err) {
         console.error("Error fetching categories:", err);
+        try {
+          const fallbackRes = await axios.get("/categories");
+          setCategories(fallbackRes.data.data || fallbackRes.data || []);
+        } catch (fallbackErr) {
+          console.error("Fallback categories fetch also failed:", fallbackErr);
+          setCategories([]);
+        }
       }
     };
     fetchCategories();
   }, []);
 
-  // Handler untuk clear search ketika kategori dipilih
   const handleCategoryChange = (categoryId: string) => {
     setSelectedCategory(categoryId);
     if (categoryId) {
-      setSearch(""); // Clear search ketika kategori dipilih
+      setSearch("");
     }
   };
 
-  // Handler untuk clear kategori ketika user mulai search
   const handleSearchChange = (searchValue: string) => {
     setSearch(searchValue);
     if (searchValue.trim()) {
-      setSelectedCategory(""); // Clear kategori ketika user mulai search
+      setSelectedCategory("");
     }
+  };
+
+  const handleClearFilters = () => {
+    setSearch("");
+    setSelectedCategory("");
+    setPage(1);
   };
 
   return (
@@ -89,9 +217,9 @@ export default function ArticlesPage() {
       <div className="bg-gradient-to-br from-blue-600 via-blue-500 to-blue-700 relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-blue-400/20 to-transparent"></div>
         <div
-          className="absolute inset-0"
+          className="absolute inset-0 opacity-25"
           style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+            backgroundImage: `url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 20 20' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fillOpacity='0.8' fillRule='evenodd'%3E%3Ccircle cx='3' cy='3' r='1'/%3E%3Ccircle cx='13' cy='13' r='1'/%3E%3C/g%3E%3C/svg%3E")`,
           }}
         ></div>
 
@@ -103,7 +231,6 @@ export default function ArticlesPage() {
             <span className="text-white font-semibold">Logipsum</span>
           </div>
 
-          {/* Replace static user info with UserDropdown */}
           <UserDropdown />
         </nav>
 
@@ -129,7 +256,7 @@ export default function ArticlesPage() {
                 onChange={(e) => handleCategoryChange(e.target.value)}
                 className="w-full px-4 py-3 rounded-lg border-0 bg-white/90 backdrop-blur-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-white/50 transition"
               >
-                <option value="">All categories</option>
+                <option value="">All categories ({categories.length})</option>
                 {categories.map((category: any) => (
                   <option key={category.id} value={category.id}>
                     {category.name}
@@ -141,7 +268,7 @@ export default function ArticlesPage() {
               <DebouncedInput
                 value={search}
                 onChange={handleSearchChange}
-                placeholder="Search articles by title or name..."
+                placeholder="Search articles by title or content..."
                 debounceMs={300}
                 className="w-full px-4 py-3 rounded-lg border-0 bg-white/90 backdrop-blur-sm text-gray-700 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/50 transition"
               />
@@ -165,12 +292,10 @@ export default function ArticlesPage() {
                   <span className="text-white text-sm">Search: "{search}"</span>
                 )}
                 <button
-                  onClick={() => {
-                    setSearch("");
-                    setSelectedCategory("");
-                  }}
-                  className="text-white hover:text-blue-200 text-sm ml-2"
+                  onClick={handleClearFilters}
+                  className="text-white hover:text-blue-200 text-sm ml-2 flex items-center"
                 >
+                  <X className="w-3 h-3 mr-1" />
                   Clear
                 </button>
               </div>
@@ -180,15 +305,32 @@ export default function ArticlesPage() {
       </div>
 
       <div className="container mx-auto px-6 py-8">
-        <div className="mb-6">
+        <div className="mb-6 flex justify-between items-center">
           <p className="text-gray-600 text-sm">
-            Showing: {articles.length} of {totalArticles} articles
-            {search && ` for "${search}"`}
-            {selectedCategory &&
-              ` in category "${
-                categories.find((cat) => cat.id === selectedCategory)?.name
-              }"`}
+            {totalArticles > 0 ? (
+              <>
+                Showing {(page - 1) * 10 + 1} -{" "}
+                {Math.min(page * 10, totalArticles)} of {totalArticles} articles
+                {search && ` for "${search}"`}
+                {selectedCategory &&
+                  ` in category "${
+                    categories.find((cat) => cat.id === selectedCategory)?.name
+                  }"`}
+              </>
+            ) : (
+              "No articles found"
+            )}
           </p>
+
+          {(search || selectedCategory) && (
+            <button
+              onClick={handleClearFilters}
+              className="px-3 py-2 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-md hover:bg-gray-50 flex items-center"
+            >
+              <X className="w-4 h-4 mr-1" />
+              Clear Filters
+            </button>
+          )}
         </div>
 
         {error && (
@@ -197,7 +339,15 @@ export default function ArticlesPage() {
           </div>
         )}
 
-        {articles.length === 0 && !error ? (
+        {/* Loading State */}
+        {loading && (
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-2 text-gray-600">Loading articles...</p>
+          </div>
+        )}
+
+        {!loading && articles.length === 0 && !error ? (
           <div className="text-center py-20">
             <div className="max-w-md mx-auto">
               <div className="w-24 h-24 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -228,17 +378,25 @@ export default function ArticlesPage() {
             </div>
           </div>
         ) : (
+          !loading &&
           articles.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 min-h-[400px]">
-              {articles.map((article: any, index: number) => (
-                <ArticleCard key={article.id} article={article} />
-              ))}
+            <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 min-h-[400px]">
+                {articles.map((article: any) => (
+                  <ArticleCard
+                    key={article.id}
+                    article={article}
+                    getCategoryColor={getCategoryColor}
+                  />
+                ))}
+              </div>
             </div>
           )
         )}
 
-        {totalPages > 1 && (
-          <div className="mt-12 flex justify-center">
+        {/* Pagination */}
+        {!loading && articles.length > 0 && (
+          <div className="mt-6">
             <Pagination page={page} totalPages={totalPages} setPage={setPage} />
           </div>
         )}

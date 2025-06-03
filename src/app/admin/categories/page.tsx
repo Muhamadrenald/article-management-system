@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { Plus, Edit3, Trash2 } from "lucide-react";
+import { Plus, Edit3, Trash2, X } from "lucide-react";
 import axios from "@/lib/axios";
 import type { Category } from "@/types";
 import DebouncedInput from "@/components/DebouncedInput";
@@ -12,6 +12,7 @@ import { Pagination } from "@/components/ui/pagination";
 
 export default function AdminCategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
+  const [allCategories, setAllCategories] = useState<Category[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
@@ -42,9 +43,15 @@ export default function AdminCategoriesPage() {
     setError(null);
     try {
       const params = new URLSearchParams();
-      params.append("page", page.toString());
-      params.append("limit", "10");
-      if (search.trim()) params.append("q", search.trim());
+      params.append("page", "1");
+      params.append("limit", "100");
+
+      // Only add search param if search is not empty
+      if (search.trim()) {
+        params.append("q", search.trim());
+      }
+
+      console.log("Fetching categories with params:", params.toString());
 
       const res = await axios.get(`/categories?${params.toString()}`);
       console.log("Categories API Response:", res.data);
@@ -75,10 +82,32 @@ export default function AdminCategoriesPage() {
         throw new Error("Invalid API response structure");
       }
 
-      setCategories(fetchedCategories);
+      // Store all fetched categories for client-side filtering
+      setAllCategories(fetchedCategories);
+
+      // Apply client-side filtering if search term exists
+      let filteredCategories = fetchedCategories;
+      if (search.trim()) {
+        const searchLower = search.trim().toLowerCase();
+        filteredCategories = fetchedCategories.filter((category) =>
+          category.name.toLowerCase().includes(searchLower)
+        );
+        console.log(
+          `Client-side filtering for "${search}" found ${filteredCategories.length} results`
+        );
+      }
+
+      // Calculate pagination based on filtered results
       const limit = 10;
-      setTotalItems(total);
-      setTotalPages(Math.ceil(total / limit) || 1);
+      const startIndex = (page - 1) * limit;
+      const paginatedCategories = filteredCategories.slice(
+        startIndex,
+        startIndex + limit
+      );
+
+      setCategories(paginatedCategories);
+      setTotalItems(filteredCategories.length);
+      setTotalPages(Math.ceil(filteredCategories.length / limit) || 1);
     } catch (err: any) {
       console.error("Error fetching categories:", err);
       const errorMessage =
@@ -93,6 +122,7 @@ export default function AdminCategoriesPage() {
         message: errorMessage,
       });
       setCategories([]);
+      setAllCategories([]);
       setTotalItems(0);
       setTotalPages(1);
     } finally {
@@ -100,9 +130,25 @@ export default function AdminCategoriesPage() {
     }
   }, [page, search]);
 
+  // Reset page to 1 when search changes
+  useEffect(() => {
+    setPage(1);
+  }, [search]);
+
   useEffect(() => {
     fetchCategories();
   }, [fetchCategories]);
+
+  // Handler for search with reset page
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+    setPage(1);
+  };
+
+  const handleClearSearch = () => {
+    setSearch(""); // This will now properly clear the DebouncedInput
+    setPage(1);
+  };
 
   const handleDeleteClick = (category: Category) => {
     setDeleteModal({
@@ -129,14 +175,9 @@ export default function AdminCategoriesPage() {
 
     try {
       await axios.delete(`/categories/${deleteModal.category.id}`);
-      setCategories(
-        categories.filter((c) => c.id !== deleteModal.category!.id)
-      );
-      setTotalItems((prev) => {
-        const newTotal = prev - 1;
-        setTotalPages(Math.ceil(newTotal / 10) || 1);
-        return newTotal;
-      });
+
+      // Refresh data after delete
+      await fetchCategories();
 
       setDeleteModal({
         isOpen: false,
@@ -194,7 +235,17 @@ export default function AdminCategoriesPage() {
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Categories</h1>
-            <p className="text-gray-600 mt-2">Total Categories: {totalItems}</p>
+            <p className="text-gray-600 mt-2">
+              {totalItems > 0 ? (
+                <>
+                  Showing {(page - 1) * 10 + 1} -{" "}
+                  {Math.min(page * 10, totalItems)} of {totalItems} categories
+                  {search && ` (filtered by "${search}")`}
+                </>
+              ) : (
+                "No categories found"
+              )}
+            </p>
           </div>
           <Link
             href="/admin/categories/create"
@@ -207,15 +258,26 @@ export default function AdminCategoriesPage() {
       </div>
 
       {/* Search */}
-      <div className="mb-6 bg-white p-4 rounded-lg shadow-sm">
+      <div className="mb-6 bg-white p-4 rounded-lg shadow-sm flex items-center justify-between">
         <div className="w-full sm:w-80">
           <DebouncedInput
             value={search}
-            onChange={setSearch}
+            onChange={handleSearchChange}
             placeholder="Search categories by name..."
             debounceMs={300}
           />
         </div>
+
+        {/* Clear search button */}
+        {search && (
+          <button
+            onClick={handleClearSearch}
+            className="ml-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-md hover:bg-gray-50 flex items-center"
+          >
+            <X className="w-4 h-4 mr-1" />
+            Clear
+          </button>
+        )}
       </div>
 
       {/* Error Message */}
@@ -238,7 +300,11 @@ export default function AdminCategoriesPage() {
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
           {categories.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-gray-500 text-lg">No categories found.</p>
+              <p className="text-gray-500 text-lg">
+                {search
+                  ? `No categories found matching "${search}".`
+                  : "No categories found."}
+              </p>
             </div>
           ) : (
             <>

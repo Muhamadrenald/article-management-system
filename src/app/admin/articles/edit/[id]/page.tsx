@@ -1,5 +1,7 @@
 "use client";
 
+import type React from "react";
+
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -26,6 +28,10 @@ interface Article {
   imageUrl?: string | null;
   createdAt?: string;
   updatedAt?: string;
+  category?: {
+    id: string;
+    name: string;
+  };
 }
 
 interface Category {
@@ -95,12 +101,14 @@ export default function EditArticlePage({
     handleSubmit,
     formState: { errors },
     setValue,
+    watch,
     reset,
   } = useForm<ArticleForm>({
     resolver: zodResolver(articleSchema),
   });
 
   const [categories, setCategories] = useState<Category[]>([]);
+  const [article, setArticle] = useState<Article | null>(null);
   const [preview, setPreview] = useState<ArticleForm | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -117,64 +125,98 @@ export default function EditArticlePage({
     message: "",
   });
 
+  // Watch categoryId to debug
+  const watchedCategoryId = watch("categoryId");
+
   useEffect(() => {
-    const fetchArticle = async () => {
-      try {
-        console.log("Fetching article with ID:", articleId);
-        const res = await axios.get(`/articles/${articleId}?admin=true`);
-        console.log("Article response:", res.data);
-
-        const article: Article = res.data.data || res.data.article || res.data;
-
-        setValue("title", article.title);
-        setValue("content", article.content);
-        setValue("categoryId", article.categoryId);
-        if (article.imageUrl) {
-          setValue("imageUrl", article.imageUrl);
-          setImagePreviewUrl(article.imageUrl);
-        }
-
-        console.log("Article data loaded:", article);
-      } catch (error: any) {
-        console.error("Error fetching article:", error);
-        setErrorMessage(
-          error.response?.data?.message ||
-            error.response?.data?.error ||
-            `Failed to fetch article. Status: ${
-              error.response?.status || "Unknown"
-            }`
-        );
-      }
-    };
-
-    const fetchCategories = async () => {
-      try {
-        console.log("Fetching categories...");
-        const res = await axios.get("/categories");
-        console.log("Categories response:", res.data);
-
-        const categoriesData: Category[] =
-          res.data.data || res.data.categories || res.data || [];
-        setCategories(categoriesData);
-        console.log("Categories loaded:", categoriesData);
-      } catch (err: any) {
-        console.error("Error fetching categories:", err);
-        setErrorMessage(
-          err.response?.data?.message ||
-            err.response?.data?.error ||
-            "Failed to fetch categories"
-        );
-      }
-    };
-
     const fetchData = async () => {
       setLoading(true);
       setErrorMessage(null);
 
       try {
-        await Promise.all([fetchArticle(), fetchCategories()]);
-      } catch (error) {
+        // Fetch both article and categories in parallel
+        const [articleRes, categoriesRes] = await Promise.all([
+          axios.get(`/articles/${articleId}?admin=true`),
+          axios.get("/categories?limit=100"), // Get all categories
+        ]);
+
+        console.log("Article response:", articleRes.data);
+        console.log("Categories response:", categoriesRes.data);
+
+        // Process article data
+        const articleData: Article =
+          articleRes.data.data || articleRes.data.article || articleRes.data;
+        setArticle(articleData);
+
+        // Process categories data
+        let categoriesData: Category[] = [];
+        if (Array.isArray(categoriesRes.data)) {
+          categoriesData = categoriesRes.data;
+        } else if (
+          categoriesRes.data &&
+          Array.isArray(categoriesRes.data.data)
+        ) {
+          categoriesData = categoriesRes.data.data;
+        } else if (
+          categoriesRes.data &&
+          Array.isArray(categoriesRes.data.categories)
+        ) {
+          categoriesData = categoriesRes.data.categories;
+        }
+
+        setCategories(categoriesData);
+        console.log("Categories loaded:", categoriesData);
+
+        // Set form values after both data are loaded
+        setValue("title", articleData.title);
+        setValue("content", articleData.content);
+
+        // Handle categoryId - ensure it's a string and exists in categories
+        let categoryId = "";
+        if (articleData.categoryId) {
+          categoryId = String(articleData.categoryId);
+        } else if (articleData.category?.id) {
+          categoryId = String(articleData.category.id);
+        }
+
+        console.log("Article categoryId:", categoryId);
+        console.log(
+          "Available category IDs:",
+          categoriesData.map((c) => c.id)
+        );
+
+        // Check if the categoryId exists in the categories list
+        const categoryExists = categoriesData.some(
+          (cat) => String(cat.id) === categoryId
+        );
+        console.log("Category exists:", categoryExists);
+
+        if (categoryExists) {
+          setValue("categoryId", categoryId);
+          console.log("Set categoryId to:", categoryId);
+        } else {
+          console.warn("Category ID not found in categories list:", categoryId);
+          setErrorMessage(
+            `Warning: Article category (${categoryId}) not found in available categories`
+          );
+        }
+
+        // Set image if exists
+        if (articleData.imageUrl) {
+          setValue("imageUrl", articleData.imageUrl);
+          setImagePreviewUrl(articleData.imageUrl);
+        }
+
+        console.log("Form data set successfully");
+      } catch (error: any) {
         console.error("Error fetching data:", error);
+        setErrorMessage(
+          error.response?.data?.message ||
+            error.response?.data?.error ||
+            `Failed to fetch data. Status: ${
+              error.response?.status || "Unknown"
+            }`
+        );
       } finally {
         setLoading(false);
       }
@@ -182,6 +224,11 @@ export default function EditArticlePage({
 
     fetchData();
   }, [articleId, setValue]);
+
+  // Debug effect to log categoryId changes
+  useEffect(() => {
+    console.log("Current form categoryId:", watchedCategoryId);
+  }, [watchedCategoryId]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -199,7 +246,7 @@ export default function EditArticlePage({
       setImageFile(file);
       setErrorMessage(null);
 
-      if (imagePreviewUrl) {
+      if (imagePreviewUrl && imageFile) {
         URL.revokeObjectURL(imagePreviewUrl);
       }
 
@@ -207,7 +254,7 @@ export default function EditArticlePage({
       setImagePreviewUrl(localUrl);
     } else {
       setImageFile(null);
-      if (imagePreviewUrl) {
+      if (imagePreviewUrl && imageFile) {
         URL.revokeObjectURL(imagePreviewUrl);
       }
       setImagePreviewUrl(null);
@@ -434,7 +481,7 @@ export default function EditArticlePage({
           {imagePreviewUrl && (
             <div className="mt-2 relative">
               <img
-                src={imagePreviewUrl}
+                src={imagePreviewUrl || "/placeholder.svg"}
                 alt="Image Preview"
                 className="max-w-xs max-h-48 object-cover rounded border"
               />
@@ -490,7 +537,7 @@ export default function EditArticlePage({
             {preview.imageUrl && (
               <div className="mb-4">
                 <img
-                  src={preview.imageUrl}
+                  src={preview.imageUrl || "/placeholder.svg"}
                   alt="Article Image"
                   className="max-w-md max-h-64 object-cover rounded border"
                 />

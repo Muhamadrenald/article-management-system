@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import axios from "@/lib/axios";
+// Import beberapa opsi icon logout dari lucide-react
+import { LogOut, DoorOpen, ArrowRight, Power } from "lucide-react";
 
 // Sesuaikan dengan response API endpoint GET /auth/profile
 interface User {
@@ -189,26 +191,47 @@ export default function UserDropdown({ user: initialUser }: UserDropdownProps) {
             </p>
           </div>
 
-          {/* Logout Button */}
+          {/* Logout Button dengan beberapa opsi icon */}
           <button
             onClick={handleLogout}
-            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center space-x-2"
+            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center space-x-2 transition-colors"
           >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013 3h4a3 3 0 013 3v1"
-              />
-            </svg>
+            {/* Opsi 1: LogOut - Icon logout klasik yang paling umum */}
+            <LogOut className="w-4 h-4" />
             <span>Logout</span>
           </button>
+
+          {/* Uncomment salah satu di bawah untuk mencoba opsi icon lainnya */}
+
+          {/* Opsi 2: DoorOpen - Icon pintu terbuka, sangat intuitif untuk "keluar"
+          <button
+            onClick={handleLogout}
+            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center space-x-2 transition-colors"
+          >
+            <DoorOpen className="w-4 h-4" />
+            <span>Logout</span>
+          </button>
+          */}
+
+          {/* Opsi 3: ArrowRight - Icon panah minimalis dan elegan
+          <button
+            onClick={handleLogout}
+            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center space-x-2 transition-colors"
+          >
+            <ArrowRight className="w-4 h-4" />
+            <span>Logout</span>
+          </button>
+          */}
+
+          {/* Opsi 4: Power - Icon power button, modern dan profesional
+          <button
+            onClick={handleLogout}
+            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center space-x-2 transition-colors"
+          >
+            <Power className="w-4 h-4" />
+            <span>Logout</span>
+          </button>
+          */}
         </div>
       )}
     </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 interface DebouncedInputProps {
   value: string;
@@ -18,16 +18,31 @@ export default function DebouncedInput({
   className,
 }: DebouncedInputProps) {
   const [inputValue, setInputValue] = useState(value);
+  const isFirstRender = useRef(true);
+
+  // Sync internal state with external value prop
+  useEffect(() => {
+    setInputValue(value);
+  }, [value]);
 
   useEffect(() => {
+    // Skip the first render to avoid calling onChange on mount
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+
     const handler = setTimeout(() => {
-      onChange(inputValue);
+      // Only call onChange if the value actually changed
+      if (inputValue !== value) {
+        onChange(inputValue);
+      }
     }, debounceMs);
 
     return () => {
       clearTimeout(handler);
     };
-  }, [inputValue, debounceMs, onChange]);
+  }, [inputValue, debounceMs, onChange, value]);
 
   return (
     <input
