@@ -3,10 +3,11 @@ import { dummyCategories } from "@/lib/dummyData";
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const categoryIdParam = params.id;
+    const { id } = await params;
+    const categoryIdParam = id;
     console.log(
       "PUT /api/categories/[id] - Category ID param:",
       categoryIdParam
@@ -77,10 +78,11 @@ export async function PUT(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const categoryIdParam = params.id;
+    const { id } = await params;
+    const categoryIdParam = id;
     console.log(
       "DELETE /api/categories/[id] - Category ID param:",
       categoryIdParam
