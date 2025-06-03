@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { FileText, Tag, LogOut, Menu, X } from "lucide-react";
+import { Notification } from "@/components/ui/notification";
 
 // Definisikan tipe SidebarItem langsung di sini
 interface SidebarItem {
@@ -26,10 +27,60 @@ export default function AdminSidebar({ className = "" }: AdminSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [notification, setNotification] = useState<{
+    isVisible: boolean;
+    type: "success" | "error";
+    message: string;
+  }>({
+    isVisible: false,
+    type: "success",
+    message: "",
+  });
+
+  const handleNotificationClose = () => {
+    setNotification((prev) => ({ ...prev, isVisible: false }));
+  };
 
   const handleLogout = () => {
-    // Implementasi logout sederhana
-    router.push("/login");
+    try {
+      // Hapus cookies
+      document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+      document.cookie =
+        "userRole=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+      document.cookie =
+        "userId=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+
+      // Hapus localStorage jika ada
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("token");
+        localStorage.removeItem("userRole");
+        localStorage.removeItem("userId");
+      }
+
+      // Tampilkan notifikasi sukses
+      setNotification({
+        isVisible: true,
+        type: "success",
+        message: "Logout successful! Redirecting...",
+      });
+
+      // Redirect ke login dengan delay untuk menampilkan notifikasi
+      setTimeout(() => {
+        router.push("/login");
+      }, 1500);
+    } catch (error) {
+      // Tampilkan notifikasi error jika ada masalah
+      setNotification({
+        isVisible: true,
+        type: "error",
+        message: "Error during logout. Please try again.",
+      });
+
+      // Tetap redirect meskipun error
+      setTimeout(() => {
+        router.push("/login");
+      }, 2000);
+    }
   };
 
   const updatedNavigation = navigation.map((item) => ({
@@ -39,6 +90,14 @@ export default function AdminSidebar({ className = "" }: AdminSidebarProps) {
 
   return (
     <>
+      {/* Notification Component */}
+      <Notification
+        type={notification.type}
+        message={notification.message}
+        isVisible={notification.isVisible}
+        onClose={handleNotificationClose}
+      />
+
       {/* Mobile menu button - positioned to not interfere with content */}
       <div className="lg:hidden fixed top-4 left-4 z-50">
         <button
